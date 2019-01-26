@@ -49,7 +49,8 @@ class LogisticReg(advi.Model):
         else:
             return NotImplemented
 
-    def loglike(self, params, data, minibatch_info=None):
+    def loglike(self, real_params, data, minibatch_info=None):
+        params = self.to_param_space(real_params)
         p = torch.sigmoid(params['b0'] + params['b1'] * data['x'])
         ll = torch.distributions.Bernoulli(p).log_prob(data['y']).sum()
         if minibatch_info is None:

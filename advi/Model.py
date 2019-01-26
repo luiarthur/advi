@@ -22,14 +22,15 @@ class Model(abc.ABC):
         """
 
     @abc.abstractmethod
-    def loglike(self, params, data, minibatch_info=None):
+    def loglike(self, real_params, data, minibatch_info=None):
         """
-        log likelihood of parameters in original scale
+        log likelihood of parameters in original space
 
         params: parameters in original parameter space
         data: data as a dictionary
         minibatch_info (dict): information related to minibatch. Used to
                                compute loglike if a minibatch is used.
+        real_params: parameteris in real space. defaults to None.
         """
         pass
 
@@ -60,6 +61,15 @@ class Model(abc.ABC):
         """
         pass
 
+    def sample_params(self, v):
+        """
+        Samples parameters in parameter space given the variational parameters
+        in real space. While this should not be costly, this should not be done
+        until the end of the ADVI, when one desires to obtain posterior
+        samples.
+        """
+        return self.to_param_space(self.sample_real_params(v))
+
     @abc.abstractmethod
     def subsample_data(self, data, minibatch_info=None):
         """
@@ -84,7 +94,8 @@ class Model(abc.ABC):
         """
         real_params = self.sample_real_params(v)
         params = self.to_param_space(real_params)
-        ll = self.loglike(params, data, minibatch_info)
+        ll = self.loglike(real_params=real_params, data=data,
+                          minibatch_info=minibatch_info)
         lprior = self.log_prior(real_params)
         lq = self.log_q(real_params, v)
         return ll + lprior - lq

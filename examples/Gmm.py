@@ -23,7 +23,6 @@ class Gmm(advi.Model):
         for key in v:
             v[key] = torch.randn((self.K, 2), device=self.device, dtype=self.dtype)
             v[key].requires_grad = True
-
         return v
 
     def subsample_data(self, data, minibatch_info=None):
@@ -56,21 +55,20 @@ class Gmm(advi.Model):
         else:
             return NotImplemented
 
-    def loglike(self, params, data, minibatch_info=None):
-        logw = torch.log(params['w'])
+    def loglike(self, real_params, data, minibatch_info=None):
+        sig = torch.exp(real_params['sig'])
+        mu = real_params['mu']
+        logw = torch.log_softmax(real_params['w'], 1)
 
         # Broadcasting: https://pytorch.org/docs/stable/notes/broadcasting.html
         # mu: 1 x K |  sig: 1 x K | w: 1 x K | y: N x 1
-        lpdf = torch.distributions.Normal(params['mu'], params['sig']).log_prob(y)
+        lpdf = torch.distributions.Normal(mu, sig).log_prob(data['y'])
         ll = torch.logsumexp(logw + lpdf, 1).sum()
 
-        # print('here: ', ll2, ll)
+        if minibatch_info is not None:
+            ll *= minibatch_info['N'] / minibatch_info['n']
 
-        if minibatch_info is None:
-            out = ll
-        else:
-            out = minibatch_info['N'] * ll / minibatch_info['n']
-        return out
+        return ll
 
     def to_real_space(self, params):
         r = dict()
@@ -99,7 +97,7 @@ if __name__ == '__main__':
     torch.manual_seed(1)
     np.random.seed(1)
 
-    N = 1000
+    N = 100000
 
     mu = np.array([3., 1., 2.])
     sig = np.array([.1, .05, .15])
@@ -114,10 +112,8 @@ if __name__ == '__main__':
     data = {'y': y}
     mod = Gmm(K=3)
     out = mod.fit(data, lr=1e-1,
-                  minibatch_info={'N': N, 'n': 300},
-                  # need nmc > 1 for some reason.
-                  # probably because random samples too variable?
-                  niters=10000, nmc=2, seed=10, eps=1e-6, init=None,
+                  minibatch_info={'N': N, 'n': 1000},
+                  niters=10000, nmc=1, seed=0, eps=1e-6, init=None,
                   print_freq=100, verbose=1)
 
     # ELBO
@@ -126,22 +122,10 @@ if __name__ == '__main__':
     plt.plot(np.abs(elbo[101:] / elbo[100:-1] - 1)); plt.show()
 
     # Posterior Distributions
-    def sample_params(v):
-        mu_dist = v['mu'][:, 0], v['mu'][:, 1].exp() 
-        sig_real_dist = v['sig'][:, 0], v['sig'][:, 1].exp() 
-        w_real_dist = v['w'][:, 0], v['w'][:, 1].exp() 
-        K = mu_dist[0].size()
-
-        mu = torch.randn(K).double() * mu_dist[1] + mu_dist[0]
-        sig = (torch.randn(K).double() * sig_real_dist[1] + sig_real_dist[0]).exp()
-        w = (torch.randn(K).double() * mu_dist[1] + mu_dist[0]).softmax(0)
-
-        return {'mu': mu, 'sig': sig, 'w': w}
-
-    samps = [sample_params(out['v']) for b in range(100)]
-    mu_samps = torch.stack([s['mu'] for s in samps])
-    sig_samps = torch.stack([s['sig'] for s in samps])
-    w_samps = torch.stack([s['w'] for s in samps])
+    samps = [mod.sample_params(out['v']) for b in range(1000)]
+    mu_samps = torch.stack([s['mu'].squeeze() for s in samps])
+    sig_samps = torch.stack([s['sig'].squeeze() for s in samps])
+    w_samps = torch.stack([s['w'].squeeze() for s in samps])
 
     print("Posterior Summary:")
     print('mu mean: {}\nmu sd: {}'.format(mu_samps.mean(0).tolist(),
