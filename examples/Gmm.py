@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 
 import advi
 
-
 class Gmm(advi.Model):
     """
     y[i] ~ sum_{k=1}^K Normal(y[i] | mu_k, sig_k)
@@ -31,7 +30,9 @@ class Gmm(advi.Model):
         else:
             n = minibatch_info['n']
             N = minibatch_info['N']
-            idx = np.random.choice(N, n, replace=False)
+            # Sampling with replacement is much faster for large N,
+            # and doesn't make a practical difference.
+            idx = np.random.choice(N, n)
             mini_data = {'y': data['y'][idx]}
         return mini_data
 
@@ -48,12 +49,23 @@ class Gmm(advi.Model):
 
         return sum([engine(v[key], real_params[key]) for key in v])
 
-
     def log_prior(self, real_params):
         if self.priors is None:
             return 0.0
         else:
-            return NotImplemented
+            lpdfw = torch.distributions.Dirichlet(self.priors['w']).log_prob
+            real_w = real_params['w'].squeeze()
+            lpw = advi.transformations.lpdf_real_dirichlet(real_w, lpdfw).sum()
+
+            lpdfs = torch.distributions.Gamma(self.priors['sig'][0],
+                    self.priors['sig'][1]).log_prob
+            real_s = real_params['sig'].squeeze()
+            lps = advi.transformations.lpdf_logx(real_s, lpdfs).sum()
+
+            lpm = torch.distributions.Normal(self.priors['mu'][0],
+                    self.priors['mu'][1]).log_prob(real_params['mu']).sum()
+
+            return lpw + lps + lpm
 
     def loglike(self, real_params, data, minibatch_info=None):
         sig = torch.exp(real_params['sig'])
@@ -97,12 +109,18 @@ if __name__ == '__main__':
     torch.manual_seed(1)
     np.random.seed(1)
 
-    N = 100000
+    N = 1000 # works
+    # N = 200 # works, if priors are set (for regularizing)
+
+    # NOTE: When N is small, priors are required so that the variational
+    # parameters do not go to infinity. Priors are (numerically) powerful in
+    # small data settings.
 
     mu = np.array([3., 1., 2.])
     sig = np.array([.1, .05, .15])
-    w = np.array([.3, .6, .1])
+    w = np.array([.5, .4, .2])
     w /= w.sum()
+    print("generating data")
     y = []
     for i in range(N):
         k = np.random.choice(3, p=w)
@@ -110,16 +128,25 @@ if __name__ == '__main__':
 
     y = torch.tensor(y, dtype=torch.float64).reshape(N, 1)
     data = {'y': y}
-    mod = Gmm(K=3)
+    K = 3
+
+    # These are good priors. Remember in Gmm.
+    # you must provide some prior information
+    # on how many groups you believe there are.
+    # Otherwise, you might get one big group.
+    priors={'w': torch.zeros(K).double() + N*.01/K,
+            'sig': torch.tensor([100, 1000]).double(),
+            'mu': torch.tensor([1.85, 5]).double()}
+    mod = Gmm(K=K, priors=priors)
     out = mod.fit(data, lr=1e-1,
-                  minibatch_info={'N': N, 'n': 1000},
-                  niters=10000, nmc=1, seed=0, eps=1e-6, init=None,
+                  minibatch_info={'N': N, 'n': 500},
+                  niters=100000, nmc=1, seed=1, eps=1e-6, init=None,
                   print_freq=100, verbose=1)
 
     # ELBO
     elbo = np.array(out['elbo'])
     plt.plot(elbo); plt.show()
-    plt.plot(np.abs(elbo[101:] / elbo[100:-1] - 1)); plt.show()
+    plt.plot((elbo[1:] / elbo[:-1] - 1)); plt.show()
 
     # Posterior Distributions
     samps = [mod.sample_params(out['v']) for b in range(1000)]
@@ -129,7 +156,7 @@ if __name__ == '__main__':
 
     print("Posterior Summary:")
     print('mu mean: {}\nmu sd: {}'.format(mu_samps.mean(0).tolist(),
-                                            mu_samps.std(0).tolist()))
+                                          mu_samps.std(0).tolist()))
     print('sig mean: {}\nsig sd: {}'.format(sig_samps.mean(0).tolist(),
                                             sig_samps.std(0).tolist()))
     print('w mean: {}\nw sd: {}'.format(w_samps.mean(0).tolist(),

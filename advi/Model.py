@@ -2,6 +2,7 @@ import abc
 import torch
 import copy
 import datetime
+import math
 
 class Model(abc.ABC):
     def __init__(self, dtype=torch.float64, device="cpu"):
@@ -188,6 +189,10 @@ class Model(abc.ABC):
 
             if t > 0 and abs(elbo[-1] / elbo[-2] - 1) < eps:
                 print("Convergence suspected. Ending optimizer early.")
+                break
+
+            if math.isnan(elbo[-1]):
+                print("nan detected! Exiting optimizer early.")
                 break
 
         return {'v': v, 'elbo': elbo}
