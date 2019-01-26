@@ -116,7 +116,7 @@ if __name__ == '__main__':
     out = mod.fit(data, lr=1e-1,
                   minibatch_info={'N': N, 'n': 300},
                   # need nmc > 1 for some reason.
-                  # probably because of broadcasting?
+                  # probably because random samples too variable?
                   niters=10000, nmc=2, seed=10, eps=1e-6, init=None,
                   print_freq=100, verbose=1)
 
