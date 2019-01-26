@@ -1,10 +1,10 @@
 # advi
 
-My implementation of black box variational inference using pytorch's auto
-differentiation.
+My implementation of automatic differentiation variational inference using
+PyTorch.
 
 # References
-- [pytorch][1]
+- [PyTorch][1]
     - [broadcasting tensors][5] (this can lead to *great* speed-ups)
 - [Variational Inference for Statisticians][2]
 - [ADVI][3]
