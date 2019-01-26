@@ -11,6 +11,8 @@ clean:
 	rm -rf *.egg-info
 	rm -rf .eggs
 	rm -rf advi/__pycache__
+	rm -rf advi/transformations/__pycache__
+	rm -rf tests/__pycache__
 
 install:
 	python3 -m pip install . --user

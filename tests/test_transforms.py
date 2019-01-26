@@ -3,7 +3,6 @@ import unittest
 import torch
 import advi.transformations as trans
 
-
 class Test_Transformations(unittest.TestCase):
     def approx(self, a, b, eps=1E-8):
         self.assertTrue(abs(a - b) < eps)

@@ -1,2 +1,2 @@
-from .transformations import transformations
+from . import transformations
 from .Model import Model

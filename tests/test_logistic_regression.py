@@ -68,21 +68,22 @@ class Test_LogisticReg(unittest.TestCase):
     torch.manual_seed(1)
 
     N = 50
-    x = torch.randn(N)
+    x = torch.randn(N, dtype=torch.float64)
     b0 = .5
     b1 = 2.
     p = 1 / (1 + torch.exp(-(b0 + b1 * x)))
-    y = (p > torch.rand(N)) * 1.0
+    y = (p > torch.rand(N, dtype=torch.float64)) * 1.0
 
-    x = torch.tensor(x, dtype=torch.float64)
-    y = torch.tensor(y, dtype=torch.float64)
-    data = {'x': x, 'y': y}
+    data = {'x': x, 'y': y.double()}
 
     mod = LogisticReg(priors=None)
     out = mod.fit(data, lr=1e-2,
                   # minibatch_info={'N': N, 'n': 100},
                   niters=100, nmc=10, seed=2, eps=1e-6, init=None,
                   print_freq=50)
+
+    def test_logistic_compiled(self):
+        self.assertTrue(True)
 
 if __name__ == '__main__':
     unittest.main()
