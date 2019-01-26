@@ -37,7 +37,7 @@ class Gmm(advi.Model):
         return mini_data
 
     def sample_real_params(self, v):
-        eta = [torch.randn(self.K).double() for vj in v]
+        eta = [torch.randn(1, self.K).double() for vj in v]
         return {'mu': eta[0] * torch.exp(v['mu'][:, 1]) + v['mu'][:, 0],
                 'sig': eta[1] * torch.exp(v['sig'][:, 1]) + v['sig'][:, 0],
                 'w': eta[2] * torch.exp(v['w'][:, 1]) + v['w'][:, 0]}
@@ -58,10 +58,13 @@ class Gmm(advi.Model):
 
     def loglike(self, params, data, minibatch_info=None):
         logw = torch.log(params['w'])
-        def lpdf(yi):
-            return torch.distributions.Normal(params['mu'], params['sig']).log_prob(yi)
 
-        ll = sum([torch.logsumexp(logw + lpdf(yi), 0) for yi in data['y']])
+        # Broadcasting: https://pytorch.org/docs/stable/notes/broadcasting.html
+        # mu: 1 x K |  sig: 1 x K | w: 1 x K | y: N x 1
+        lpdf = torch.distributions.Normal(params['mu'], params['sig']).log_prob(y)
+        ll = torch.logsumexp(logw + lpdf, 1).sum()
+
+        # print('here: ', ll2, ll)
 
         if minibatch_info is None:
             out = ll
@@ -80,16 +83,17 @@ class Gmm(advi.Model):
         p = dict()
         p['mu'] = real_params['mu']
         p['sig'] = torch.exp(real_params['sig'])
-        p['w'] = torch.softmax(real_params['w'], 0)
+        p['w'] = torch.softmax(real_params['w'], 1)
         return p
 
     def msg(self, t, v):
-        d = {'mu': v['mu'][:, 0],
-             'sig': torch.exp(v['sig'][:, 0]),
-             'w': torch.softmax(v['w'],0)[:, 0]}
+        if (t + 1) % 100 == 0:
+            d = {'mu': v['mu'][:, 0],
+                 'sig': torch.exp(v['sig'][:, 0]),
+                 'w': torch.softmax(v['w'], 0)[:, 0]}
 
-        for k in d:
-            print('{}: {}'.format(k, d[k].tolist()))
+            for k in d:
+                print('{}: {}'.format(k, d[k].tolist()))
     
 if __name__ == '__main__':
     torch.manual_seed(1)
@@ -106,13 +110,13 @@ if __name__ == '__main__':
         k = np.random.choice(3, p=w)
         y.append(np.random.randn() * sig[k] + mu[k])
 
-    y = torch.tensor(y, dtype=torch.float64)
+    y = torch.tensor(y, dtype=torch.float64).reshape(N, 1)
     data = {'y': y}
     mod = Gmm(K=3)
-    out = mod.fit(data, lr=1e-2,
-                  minibatch_info={'N': N, 'n': 100},
+    out = mod.fit(data, lr=1e-1,
+                  minibatch_info={'N': N, 'n': 300},
                   niters=1000, nmc=10, seed=0, eps=1e-6, init=None,
-                  print_freq=1, verbose=1)
+                  print_freq=100, verbose=1)
 
     # ELBO
     elbo = np.array(out['elbo'])
@@ -124,5 +128,4 @@ if __name__ == '__main__':
     # vp = out['v']
     # print('b0 mu: {}, sd: {}'.format(vp['b0'][0], torch.exp(vp['b0'][1])))
     # print('b1 mu: {}, sd: {}'.format(vp['b1'][0], torch.exp(vp['b1'][1])))
-
 
