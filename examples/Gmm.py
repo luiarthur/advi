@@ -115,7 +115,9 @@ if __name__ == '__main__':
     mod = Gmm(K=3)
     out = mod.fit(data, lr=1e-1,
                   minibatch_info={'N': N, 'n': 300},
-                  niters=1000, nmc=10, seed=0, eps=1e-6, init=None,
+                  # need nmc > 1 for some reason.
+                  # probably because of broadcasting?
+                  niters=10000, nmc=2, seed=10, eps=1e-6, init=None,
                   print_freq=100, verbose=1)
 
     # ELBO
@@ -123,9 +125,29 @@ if __name__ == '__main__':
     plt.plot(elbo); plt.show()
     plt.plot(np.abs(elbo[101:] / elbo[100:-1] - 1)); plt.show()
 
-
     # Posterior Distributions
-    # vp = out['v']
-    # print('b0 mu: {}, sd: {}'.format(vp['b0'][0], torch.exp(vp['b0'][1])))
-    # print('b1 mu: {}, sd: {}'.format(vp['b1'][0], torch.exp(vp['b1'][1])))
+    def sample_params(v):
+        mu_dist = v['mu'][:, 0], v['mu'][:, 1].exp() 
+        sig_real_dist = v['sig'][:, 0], v['sig'][:, 1].exp() 
+        w_real_dist = v['w'][:, 0], v['w'][:, 1].exp() 
+        K = mu_dist[0].size()
+
+        mu = torch.randn(K).double() * mu_dist[1] + mu_dist[0]
+        sig = (torch.randn(K).double() * sig_real_dist[1] + sig_real_dist[0]).exp()
+        w = (torch.randn(K).double() * mu_dist[1] + mu_dist[0]).softmax(0)
+
+        return {'mu': mu, 'sig': sig, 'w': w}
+
+    samps = [sample_params(out['v']) for b in range(100)]
+    mu_samps = torch.stack([s['mu'] for s in samps])
+    sig_samps = torch.stack([s['sig'] for s in samps])
+    w_samps = torch.stack([s['w'] for s in samps])
+
+    print("Posterior Summary:")
+    print('mu mean: {}\nmu sd: {}'.format(mu_samps.mean(0).tolist(),
+                                            mu_samps.std(0).tolist()))
+    print('sig mean: {}\nsig sd: {}'.format(sig_samps.mean(0).tolist(),
+                                            sig_samps.std(0).tolist()))
+    print('w mean: {}\nw sd: {}'.format(w_samps.mean(0).tolist(),
+                                        w_samps.std(0).tolist()))
 

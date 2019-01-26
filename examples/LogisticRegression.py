@@ -81,7 +81,8 @@ if __name__ == '__main__':
     mod = LogisticReg(priors=None)
     out = mod.fit(data, lr=1e-2,
                   # minibatch_info={'N': N, 'n': 100},
-                  niters=5000, nmc=10, seed=2, eps=1e-6, init=None,
+                  # nmc = 1 is good enough in practice
+                  niters=5000, nmc=1, seed=2, eps=0, init=None,
                   print_freq=50)
 
     # ELBO
