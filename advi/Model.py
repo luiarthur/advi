@@ -93,6 +93,9 @@ class Model(abc.ABC):
         mini_data = self.subsample_data(data, minibatch_info)
         return torch.stack([self.compute_elbo(v, mini_data, minibatch_info)
                             for i in range(nmc)]).mean()
+
+    def msg(self, t, v):
+        pass
         
     def fit(self, data, niters:int=1000, nmc:int=10, lr=1e-3, minibatch_info=None, seed:int=1,
             eps=1e-8, init=None, print_freq:int=10, verbose:int=1):
@@ -121,6 +124,8 @@ class Model(abc.ABC):
                     
                 if verbose >= 2:
                     print('state: {}'.format(v))
+
+                self.msg(t, v)
 
             if t > 0 and abs(elbo[-1] / elbo[-2] - 1) < eps:
                 print("Convergence suspected. Ending optimizer early.")
