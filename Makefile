@@ -1,7 +1,6 @@
 SHELL := /bin/bash
 .PHONY: install clean test lint
 
-INIT_FILES = advi/__init__.py advi/transformations/__init__.py
 SRC_FILES = advi/Model.py advi/transformations/transformations.py	
 
 lint:
@@ -17,5 +16,5 @@ clean:
 install: test
 	python3 -m pip install . --user
 
-test: $(SRC_FILES) $(INIT_FILES)
+test: $(SRC_FILES)
 	python3 setup.py test

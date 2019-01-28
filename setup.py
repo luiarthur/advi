@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(name='advi',
       version='0.2',
@@ -7,7 +7,8 @@ setup(name='advi',
       author='Arthur Lui',
       author_email='luiarthur@gmail.com',
       license='MIT',
-      packages=['advi'],
+      # packages=['advi'],
+      packages=find_packages(),
       test_suite='nose.collector',
       tests_require=[ 'nose' ],
       install_requires=['torch'],
