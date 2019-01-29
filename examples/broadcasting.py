@@ -19,19 +19,28 @@ L0 = 6
 # Create parameters of specified dimensions
 y = [torch.randn(N[i], J, 1, 1) for i in range(I)]
 
-mu1 = torch.randn(1, 1, L1, 1)
+mu1 = torch.randn(1, 1, L1, 1); mu1.requires_grad=True
 eta1 = [torch.stack([Dirichlet(torch.ones(L1)).sample()
         for j in range(J)]).reshape(1, J, L1, 1) for i in range(I)]
 
-mu0 = torch.randn(1, 1, L0, 1)
+mu0 = torch.randn(1, 1, L0, 1); mu0.requires_grad=True
 eta0 = [torch.stack([Dirichlet(torch.ones(L0)).sample()
         for j in range(J)]).reshape(1, J, L0, 1) for i in range(I)]
 
-sig = torch.rand(I)
+for i in range(I):
+    eta0[i].requires_grad=True
+    eta1[i].requires_grad=True
+
+sig = torch.rand(I); sig.requires_grad=True
+
 
 v = torch.rand(K).reshape(1, 1, K) # Ni x J x K (no L)
+v.requires_grad=True
+# Z = (torch.rand(J, K) > .5).reshape(1, J, K) # Ni x J x K (no L)
 
 w = [Dirichlet(torch.ones(K)).sample().reshape(1, K) for i in range(I)]
+for i in range(I):
+    w[i].requires_grad=True
 
 # Time the execution
 tic = time.time()
@@ -46,7 +55,9 @@ c = (a1 * torch.log(v) + a0 * torch.log(1-v)).sum(1) # Ni x K
 
 f = c + torch.log(w[i])
 g = torch.logsumexp(f, 1)
-print(g.sum())
+ll = g.sum()
+print(ll)
+tic = time.time(); ll.backward(); print('backward time: {}'.format(time.time() - tic));
 
 toc = time.time() - tic
 print('Elapsed time for computation: {}'.format(toc))
