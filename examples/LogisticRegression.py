@@ -13,7 +13,7 @@ class LogisticReg(advi.Model):
         self.device = device
         self.priors = priors
 
-    def init_v(self):
+    def init_vp(self):
         v = {'b0': None, 'b1': None}
         for k in v:
             v[k] = torch.randn(2, device=self.device, dtype=self.dtype)
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     plt.plot(np.abs(elbo[101:] / elbo[100:-1] - 1)); plt.show()
 
     # Posterior Distributions
-    vp = out['v']
+    vp = out['vp']
     print('b0 mu: {}, sd: {}'.format(vp['b0'][0], torch.exp(vp['b0'][1])))
     print('b1 mu: {}, sd: {}'.format(vp['b1'][0], torch.exp(vp['b1'][1])))
 

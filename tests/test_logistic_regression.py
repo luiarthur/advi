@@ -13,12 +13,12 @@ class LogisticReg(advi.Model):
         self.device = device
         self.priors = priors
 
-    def init_v(self):
-        v = {'b0': None, 'b1': None}
-        for k in v:
-            v[k] = torch.randn(2, device=self.device, dtype=self.dtype)
-            v[k].requires_grad = True
-        return v
+    def init_vp(self):
+        vp = {'b0': None, 'b1': None}
+        for k in vp:
+            vp[k] = torch.randn(2, device=self.device, dtype=self.dtype)
+            vp[k].requires_grad = True
+        return vp
 
     def subsample_data(self, data, minibatch_info=None):
         if minibatch_info is None:
@@ -30,17 +30,17 @@ class LogisticReg(advi.Model):
             mini_data = {'x': data['x'][idx], 'y': data['y'][idx]}
         return mini_data
 
-    def sample_real_params(self, v):
-        eta = [torch.distributions.Normal(0, 1).sample() for v in v]
-        return {'b0': eta[0] * torch.exp(v['b0'][1]) + v['b0'][0],
-                'b1': eta[1] * torch.exp(v['b1'][1]) + v['b1'][0]}
+    def sample_real_params(self, vp):
+        eta = [torch.distributions.Normal(0, 1).sample() for v in vp]
+        return {'b0': eta[0] * torch.exp(vp['b0'][1]) + vp['b0'][0],
+                'b1': eta[1] * torch.exp(vp['b1'][1]) + vp['b1'][0]}
 
-    def log_q(self, real_params, v):
+    def log_q(self, real_params, vp):
         def engine(vj, rj):
             m, s = vj[0], torch.exp(vj[1])
             return torch.distributions.Normal(m, s).log_prob(rj)
 
-        return sum([engine(v[key], real_params[key]) for key in v])
+        return sum([engine(vp[key], real_params[key]) for key in vp])
 
 
     def log_prior(self, real_params):

@@ -17,7 +17,7 @@ class Gmm(advi.Model):
         self.priors = priors
         self.K = K
 
-    def init_v(self):
+    def init_vp(self):
         v = {'mu': None, 'sig': None, 'w': None}
         for key in v:
             v[key] = torch.randn((self.K, 2), device=self.device, dtype=self.dtype)
@@ -118,7 +118,7 @@ if __name__ == '__main__':
 
     mu = np.array([3., 1., 2.])
     sig = np.array([.1, .05, .15])
-    w = np.array([.5, .4, .2])
+    w = np.array([.5, .3, .2])
     w /= w.sum()
     print("generating data")
     y = []
@@ -140,7 +140,7 @@ if __name__ == '__main__':
     mod = Gmm(K=K, priors=priors)
     out = mod.fit(data, lr=1e-1,
                   minibatch_info={'N': N, 'n': 500},
-                  niters=100000, nmc=1, seed=1, eps=1e-6, init=None,
+                  niters=10000, nmc=1, seed=1, eps=1e-6, init=None,
                   print_freq=100, verbose=1)
 
     # ELBO
@@ -149,7 +149,7 @@ if __name__ == '__main__':
     plt.plot((elbo[1:] / elbo[:-1] - 1)); plt.show()
 
     # Posterior Distributions
-    samps = [mod.sample_params(out['v']) for b in range(1000)]
+    samps = [mod.sample_params(out['vp']) for b in range(1000)]
     mu_samps = torch.stack([s['mu'].squeeze() for s in samps])
     sig_samps = torch.stack([s['sig'].squeeze() for s in samps])
     w_samps = torch.stack([s['w'].squeeze() for s in samps])

@@ -44,32 +44,32 @@ class Model(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def log_q(self, real_params, v):
+    def log_q(self, real_params, vp):
         """
         log of variational density in real space
 
         real_params: parameters in real space
-        v: variational parameters, in real space
+        vp: variational parameters, in real space
         """
         pass
 
 
     @abc.abstractmethod
-    def sample_real_params(self, v):
+    def sample_real_params(self, vp):
         """
         samples parameters in real space from the variational distributions
         given the variational parameters in real space.
         """
         pass
 
-    def sample_params(self, v):
+    def sample_params(self, vp):
         """
         Samples parameters in parameter space given the variational parameters
         in real space. While this should not be costly, this should not be done
         until the end of the ADVI, when one desires to obtain posterior
         samples.
         """
-        return self.to_param_space(self.sample_real_params(v))
+        return self.to_param_space(self.sample_real_params(vp))
 
     @abc.abstractmethod
     def subsample_data(self, data, minibatch_info=None):
@@ -79,29 +79,29 @@ class Model(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def init_v(self):
+    def init_vp(self):
         """
         initialize variational parameters in real space
         """
         pass
 
-    def compute_elbo(self, v, data, minibatch_info=None):
+    def compute_elbo(self, vp, data, minibatch_info=None):
         """
         compute elbo
 
-        v: variational parameters
+        vp: variational parameters
         data: data (may be a minibatch)
         minibatch_info: Information about minibatch
         """
-        real_params = self.sample_real_params(v)
+        real_params = self.sample_real_params(vp)
         params = self.to_param_space(real_params)
         ll = self.loglike(real_params=real_params, data=data,
                           minibatch_info=minibatch_info)
         lprior = self.log_prior(real_params)
-        lq = self.log_q(real_params, v)
+        lq = self.log_q(real_params, vp)
         return ll + lprior - lq
 
-    def compute_elbo_mean(self, data, v, nmc, minibatch_info):
+    def compute_elbo_mean(self, data, vp, nmc, minibatch_info):
         """
         Compute the mean of the elbo via Monte Carlo integration
         
@@ -110,20 +110,20 @@ class Model(abc.ABC):
         overkill for most if not all problems.
 
         data: data
-        v: variational parameters (real space)
+        vp: variational parameters (real space)
         nmc: number of MC samples
         minibatch_info: information about minibatch
         """
         mini_data = self.subsample_data(data, minibatch_info)
-        return torch.stack([self.compute_elbo(v, mini_data, minibatch_info)
+        return torch.stack([self.compute_elbo(vp, mini_data, minibatch_info)
                             for i in range(nmc)]).mean()
 
-    def msg(self, t, v):
+    def msg(self, t, vp):
         """
         an optional message to print at the end of each iteration.
 
         t: iteration number
-        v: variational parameters (real space)
+        vp: variational parameters (real space)
         """
         pass
         
@@ -161,15 +161,15 @@ class Model(abc.ABC):
 
 
         if init is not None:
-            v = copy.deepcopy(init)
+            vp = copy.deepcopy(init)
         else:
-            v = self.init_v()
+            vp = self.init_vp()
 
-        optimizer = torch.optim.Adam(v.values(), lr=lr)
+        optimizer = torch.optim.Adam(vp.values(), lr=lr)
         elbo = []
 
         for t in range(niters):
-            elbo_mean = self.compute_elbo_mean(data, v, nmc, minibatch_info)
+            elbo_mean = self.compute_elbo_mean(data, vp, nmc, minibatch_info)
             loss = -elbo_mean
             optimizer.zero_grad()
             loss.backward(retain_graph=True)
@@ -183,9 +183,9 @@ class Model(abc.ABC):
                           t + 1, niters, elbo[-1]))
                     
                 if verbose >= 2:
-                    print('state: {}'.format(v))
+                    print('state: {}'.format(vp))
 
-                self.msg(t, v)
+                self.msg(t, vp)
 
             if t > 0 and abs(elbo[-1] / elbo[-2] - 1) < eps:
                 print("Convergence suspected. Ending optimizer early.")
@@ -195,5 +195,5 @@ class Model(abc.ABC):
                 print("nan detected! Exiting optimizer early.")
                 break
 
-        return {'v': v, 'elbo': elbo}
+        return {'vp': vp, 'elbo': elbo}
 
