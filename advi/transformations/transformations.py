@@ -1,7 +1,7 @@
 import torch
 
 # Transforms from support space to Real space
-def logit(p, a=0.0, b=1.0):
+def logit(p, a=torch.tensor(0.0), b=torch.tensor(1.0)):
     """
     for scalar parameters with bounded support (no gaps)
     basically a logit transform
@@ -15,7 +15,7 @@ def invsoftmax(p):
     return torch.log(p) - torch.log(p.max())
 
 # Transforms from to Real space to support space
-def invlogit(x, a=0.0, b=1.0):
+def invlogit(x, a=torch.tensor(0.0), b=torch.tensor(1.0)):
     """
     sigmoid
     """
@@ -27,7 +27,7 @@ def lpdf_logx(logx, lpdf_x):
     x = torch.exp(logx)
     return lpdf_x(x) + logx
 
-def lpdf_logitx(logitx, lpdf_x, a=0.0, b=1.0):
+def lpdf_logitx(logitx, lpdf_x, a=torch.tensor(0.0), b=torch.tensor(1.0)):
     x = invlogit(logitx, a, b) 
     p = (x - a) / (b - a)
     return lpdf_x(x) + torch.log(b - a) + torch.log(p) + torch.log(1 - p)
