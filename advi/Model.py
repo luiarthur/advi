@@ -184,7 +184,7 @@ class Model(abc.ABC):
             if print_freq > 0 and (t + 1) % print_freq == 0:
                 now = datetime.datetime.now().replace(microsecond=0)
                 if verbose >= 1:
-                    print('{} | iteration: {}/{} | elbo mean: {}'.format(now,
+                    print('{} | iteration: {}/{} | elbo: {}'.format(now,
                           t + 1, niters, elbo[-1]))
                     
                 if verbose >= 2:
