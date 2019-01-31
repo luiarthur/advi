@@ -126,6 +126,9 @@ class Model(abc.ABC):
         vp: variational parameters (real space)
         """
         pass
+
+    def vp_as_list(self, vp):
+        return vp.values()
         
     def fit(self, data, niters:int=1000, nmc:int=2, lr:float=1e-2,
             minibatch_info=None, seed:int=1, eps:float=1e-6, init=None,
@@ -164,8 +167,10 @@ class Model(abc.ABC):
             vp = copy.deepcopy(init)
         else:
             vp = self.init_vp()
+        
+        vp_list = self.vp_as_list(vp)
 
-        optimizer = torch.optim.Adam(vp.values(), lr=lr)
+        optimizer = torch.optim.Adam(vp_list, lr=lr)
         elbo = []
 
         for t in range(niters):

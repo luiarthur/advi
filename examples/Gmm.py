@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import advi
+from VarParam import VarParam
 
 class Gmm(advi.Model):
     """
@@ -18,11 +19,16 @@ class Gmm(advi.Model):
         self.K = K
 
     def init_vp(self):
-        v = {'mu': None, 'sig': None, 'w': None}
-        for key in v:
-            v[key] = torch.randn((self.K, 2), device=self.device, dtype=self.dtype)
-            v[key].requires_grad = True
-        return v
+        # OLD
+        # v = {'mu': None, 'sig': None, 'w': None}
+        # for key in v:
+        #     v[key] = torch.randn((self.K, 2), device=self.device, dtype=self.dtype)
+        #     v[key].requires_grad = True
+        # return v
+        # NEW
+        return {'mu': VarParam((1, self.K)),
+                'sig': VarParam((1, self.K), init_m=0.0, init_log_s=-2),
+                'w': VarParam((1, self.K), init_m=0.0, init_log_s=-2)}
 
     def subsample_data(self, data, minibatch_info=None):
         if minibatch_info is None:
@@ -36,18 +42,28 @@ class Gmm(advi.Model):
             mini_data = {'y': data['y'][idx]}
         return mini_data
 
-    def sample_real_params(self, v):
-        eta = [torch.randn(1, self.K).double() for vj in v]
-        return {'mu': eta[0] * torch.exp(v['mu'][:, 1]) + v['mu'][:, 0],
-                'sig': eta[1] * torch.exp(v['sig'][:, 1]) + v['sig'][:, 0],
-                'w': eta[2] * torch.exp(v['w'][:, 1]) + v['w'][:, 0]}
+    def sample_real_params(self, vp):
+        real_params = {}
+        for key in vp:
+            real_params[key] = vp[key].sample()
+        return real_params
 
-    def log_q(self, real_params, v):
-        def engine(vj, rj):
-            m, s = vj[:, 0], torch.exp(vj[:, 1])
-            return torch.distributions.Normal(m, s).log_prob(rj).sum()
+        # eta = [torch.randn(1, self.K).double() for vj in v]
+        # return {'mu': eta[0] * torch.exp(v['mu'][:, 1]) + v['mu'][:, 0],
+        #         'sig': eta[1] * torch.exp(v['sig'][:, 1]) + v['sig'][:, 0],
+        #         'w': eta[2] * torch.exp(v['w'][:, 1]) + v['w'][:, 0]}
 
-        return sum([engine(v[key], real_params[key]) for key in v])
+    def log_q(self, real_params, vp):
+        # def engine(vj, rj):
+        #     m, s = vj[:, 0], torch.exp(vj[:, 1])
+        #     return torch.distributions.Normal(m, s).log_prob(rj).sum()
+
+        # return sum([engine(v[key], real_params[key]) for key in v])
+        out = 0.0
+        for key in vp:
+            out += vp[key].log_prob(real_params[key]).sum()
+
+        return out
 
     def log_prior(self, real_params):
         if self.priors is None:
@@ -65,9 +81,11 @@ class Gmm(advi.Model):
             lpm = torch.distributions.Normal(self.priors['mu'][0],
                     self.priors['mu'][1]).log_prob(real_params['mu']).sum()
 
-            return lpw + lps + lpm
+            lp = lpw + lps + lpm
+            return lp
 
     def loglike(self, real_params, data, minibatch_info=None):
+        assert real_params['w'].shape == (1, self.K)
         sig = torch.exp(real_params['sig'])
         mu = real_params['mu']
         logw = torch.log_softmax(real_params['w'], 1)
@@ -90,17 +108,21 @@ class Gmm(advi.Model):
         return r
 
     def to_param_space(self, real_params):
+        assert real_params['w'].shape == (1, self.K)
         p = dict()
         p['mu'] = real_params['mu']
         p['sig'] = torch.exp(real_params['sig'])
         p['w'] = torch.softmax(real_params['w'], 1)
         return p
 
-    def msg(self, t, v):
+    def vp_as_list(self, vp):
+        return [v.m for v in vp.values()] + [v.log_s for v in vp.values()]
+
+    def msg(self, t, vp):
         if (t + 1) % 100 == 0:
-            d = {'mu': v['mu'][:, 0],
-                 'sig': torch.exp(v['sig'][:, 0]),
-                 'w': torch.softmax(v['w'], 0)[:, 0]}
+            d = {'mu': vp['mu'].m,
+                 'sig': torch.exp(vp['sig'].m),
+                 'w': torch.softmax(vp['w'].m, 1)}
 
             for k in d:
                 print('{}: {}'.format(k, d[k].tolist()))
@@ -109,8 +131,9 @@ if __name__ == '__main__':
     torch.manual_seed(1)
     np.random.seed(1)
 
-    N = 1000 # works
-    # N = 200 # works, if priors are set (for regularizing)
+    # N = 20000 # works
+    N = 2000 # works, and even converges quickly with minibatch
+    # N = 200 # works, when not using minibatch
 
     # NOTE: When N is small, priors are required so that the variational
     # parameters do not go to infinity. Priors are (numerically) powerful in
@@ -134,13 +157,13 @@ if __name__ == '__main__':
     # you must provide some prior information
     # on how many groups you believe there are.
     # Otherwise, you might get one big group.
-    priors={'w': torch.zeros(K).double() + N*.01/K,
-            'sig': torch.tensor([100, 1000]).double(),
+    priors={'w': torch.zeros(K).double() + 1/K,
+            'sig': torch.tensor([1, 10]).double(),
             'mu': torch.tensor([1.85, 5]).double()}
     mod = Gmm(K=K, priors=priors)
     out = mod.fit(data, lr=1e-1,
                   minibatch_info={'N': N, 'n': 500},
-                  niters=10000, nmc=1, seed=1, eps=1e-6, init=None,
+                  niters=20000, nmc=1, seed=1, eps=1e-6, init=None,
                   print_freq=100, verbose=1)
 
     # ELBO
