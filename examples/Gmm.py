@@ -12,11 +12,12 @@ class Gmm(advi.Model):
     """
     y[i] ~ sum_{k=1}^K Normal(y[i] | mu_k, sig_k)
     """
-    def __init__(self, K:int, priors=None, dtype=torch.float64, device="cpu"):
+    def __init__(self, K:int, N:int, priors=None, dtype=torch.float64, device="cpu"):
         self.dtype = dtype
         self.device = device
         self.priors = priors
         self.K = K
+        self.N = N
 
     def init_vp(self):
         # OLD
@@ -63,7 +64,7 @@ class Gmm(advi.Model):
         for key in vp:
             out += vp[key].log_prob(real_params[key]).sum()
 
-        return out
+        return out / self.N
 
     def log_prior(self, real_params):
         if self.priors is None:
@@ -82,7 +83,7 @@ class Gmm(advi.Model):
                     self.priors['mu'][1]).log_prob(real_params['mu']).sum()
 
             lp = lpw + lps + lpm
-            return lp
+            return lp / self.N
 
     def loglike(self, real_params, data, minibatch_info=None):
         assert real_params['w'].shape == (1, self.K)
@@ -93,10 +94,7 @@ class Gmm(advi.Model):
         # Broadcasting: https://pytorch.org/docs/stable/notes/broadcasting.html
         # mu: 1 x K |  sig: 1 x K | w: 1 x K | y: N x 1
         lpdf = torch.distributions.Normal(mu, sig).log_prob(data['y'])
-        ll = torch.logsumexp(logw + lpdf, 1).sum()
-
-        if minibatch_info is not None:
-            ll *= minibatch_info['N'] / minibatch_info['n']
+        ll = torch.logsumexp(logw + lpdf, 1).mean()
 
         return ll
 
@@ -119,7 +117,8 @@ class Gmm(advi.Model):
         return [v.m for v in vp.values()] + [v.log_s for v in vp.values()]
 
     def msg(self, t, vp):
-        if (t + 1) % 100 == 0:
+        # if (t + 1) % 100 == 0:
+        if False:
             d = {'mu': vp['mu'].m,
                  'sig': torch.exp(vp['sig'].m),
                  'w': torch.softmax(vp['w'].m, 1)}
@@ -132,7 +131,7 @@ if __name__ == '__main__':
     np.random.seed(1)
 
     # N = 20000 # works
-    N = 2000 # works, and even converges quickly with minibatch
+    N = 10000 # works, and even converges quickly with minibatch
     # N = 200 # works, when not using minibatch
 
     # NOTE: When N is small, priors are required so that the variational
@@ -160,10 +159,10 @@ if __name__ == '__main__':
     priors={'w': torch.zeros(K).double() + 1/K,
             'sig': torch.tensor([1, 10]).double(),
             'mu': torch.tensor([1.85, 5]).double()}
-    mod = Gmm(K=K, priors=priors)
+    mod = Gmm(K=K, N=N, priors=priors)
     out = mod.fit(data, lr=1e-1,
                   minibatch_info={'N': N, 'n': 500},
-                  niters=20000, nmc=1, seed=1, eps=1e-6, init=None,
+                  niters=1000, nmc=1, seed=1, eps=1e-6, init=None,
                   print_freq=100, verbose=1)
 
     # ELBO

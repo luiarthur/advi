@@ -104,7 +104,8 @@ class Gmm(advi.Model):
         return p
 
     def msg(self, t, v):
-        if (t + 1) % 100 == 0:
+        # if (t + 1) % 100 == 0:
+        if False:
             d = {'mu': v['mu'][:, 0],
                  'sig': torch.exp(v['sig'][:, 0]),
                  'w': self.sbt(v['w'][:, 0])}
