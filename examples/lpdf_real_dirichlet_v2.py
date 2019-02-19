@@ -34,3 +34,9 @@ p1.sum(-1)
 
 p2 = complete_dim(softmax_fullrank(r2))
 p2.sum(-1)
+
+
+K = 3
+r = torch.arange(K, dtype=torch.float) - 0.5
+conc = (torch.arange(K + 1, dtype=torch.float) + 1) / 3.0
+lpdf_real_dirichlet(r, conc)
