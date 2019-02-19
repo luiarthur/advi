@@ -132,7 +132,7 @@ if __name__ == '__main__':
 
     # N = 20000 # works
     N = 10000 # works, and even converges quickly with minibatch
-    # N = 200 # works, when not using minibatch
+    # N = 200 # works
 
     # NOTE: When N is small, priors are required so that the variational
     # parameters do not go to infinity. Priors are (numerically) powerful in
@@ -143,10 +143,12 @@ if __name__ == '__main__':
     w = np.array([.5, .3, .2])
     w /= w.sum()
     print("generating data")
-    y = []
-    for i in range(N):
-        k = np.random.choice(3, p=w)
-        y.append(np.random.randn() * sig[k] + mu[k])
+    k = np.random.choice(3, p=w, size=N)
+    y = np.random.randn(N) * sig[k] + mu[k]
+    # y = []
+    # for i in range(N):
+    #     k = np.random.choice(3, p=w)
+    #     y.append(np.random.randn() * sig[k] + mu[k])
 
     y = torch.tensor(y, dtype=torch.float64).reshape(N, 1)
     data = {'y': y}
